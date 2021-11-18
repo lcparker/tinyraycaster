@@ -3,6 +3,9 @@
 #include <vector>
 #include <array>
 #include <string>
+#include <cmath>
+
+using namespace std;
 
 
 struct Pixel{
@@ -47,13 +50,17 @@ class Player{
 
 		unsigned int x_pos;
 		unsigned int y_pos;
+		double view_angle;
 
-		Player(unsigned int horizontal, unsigned int vertical) : x_pos(horizontal), y_pos(vertical) {};
+		Player(unsigned int h, unsigned int v) : x_pos(h), y_pos(v), view_angle(0.) {};
+
+		Player(unsigned int h, unsigned int v, double a) : x_pos(h), y_pos(v), view_angle(a) {};
 
 		void set_position(unsigned int horizontal, unsigned int vertical){
 			x_pos = horizontal;
 			y_pos = vertical;
 		}
+
 };
 
 class Image{
@@ -83,7 +90,7 @@ class Image{
 };
 
 void draw_rectangle(Image &image, int x, int y, int rect_width, int rect_height){
-	Pixel blank_pixel(255,255,255);
+	Pixel blank_pixel(0,255,255);
 	for(int i=0;i<rect_height;i++){
 		for(int j=0;j<rect_width;j++){
 			image.set_pixel(y*rect_height+i,x*rect_width+j,blank_pixel);
@@ -108,6 +115,25 @@ void draw_player(Image &image, Player &player){
 			image.set_pixel(player.y_pos+i, player.x_pos+j, Pixel(255,255,255));	
 		}
 	}
+}
+
+double player_rangefinder(Player &player, Image &image, Map &map){ 
+	double c=0;
+	double max_range = 300;
+	double width_ratio = map.width/double(image.get_width()); 
+	double height_ratio = map.height/double(image.get_height()); 
+	
+
+	for(;c<max_range;c+=0.05){
+		double ry = player.y_pos+c*sin(player.view_angle);
+		double rx = player.x_pos+c*cos(player.view_angle);
+		cout << "c = " << c << endl;
+		image.set_pixel(ry,rx,Pixel(100,100,100));
+		cout << "ray pos " << rx << "\t" << ry << "\t" << int(rx*width_ratio) << "\t" << int(ry*height_ratio) << endl;
+		if(map.map[int(ry*height_ratio)*map.width + int(rx*width_ratio)] != ' ') break;
+	}
+
+	return c;
 }
 
 void drop_ppm_image(std::string fname, Image image ){
@@ -152,8 +178,9 @@ int main(){
 	}
 
 	draw_map(image, map);
-	Player player(80,80);
+	Player player(80,80,M_PI/6);
 	draw_player(image, player);
+	player_rangefinder(player, image, map);
 	drop_ppm_image("output.ppm",image);
 	
 	return 0;
