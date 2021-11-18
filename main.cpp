@@ -179,18 +179,26 @@ int main(){
                        	"0              0"\
                        	"0002222222200000"); // our game map [ssloy]
 
-	Image image(image_map_width, image_view_width, image_height, map);
-	for(unsigned int i=0;i<image_height;i++){
-		for(unsigned int j=0;j<image_map_width;j++){
-			image.set_pixel(i,j,Pixel(256*i/image.height, 256*j/image.map_width,0));
+	// simple dumb rotation stream - later this will be done in a loop controlled by the player in a gui
+	double a=0;
+	for(int x=0;x<360;x++){
+		a+=2*M_PI/260.;
+		Image image(image_map_width, image_view_width, image_height, map);
+		for(unsigned int i=0;i<image_height;i++){
+			for(unsigned int j=0;j<image_map_width;j++){
+				image.set_pixel(i,j,Pixel(256*i/image.height, 256*j/image.map_width,0));
+			}
 		}
+		draw_map(image, map);
+		Player player(2.3,2.3,a);
+		cout << player.view_angle << endl;
+		cout << a << endl;
+		draw_player(image, player);
+		player_rangefinder(player, image, map, M_PI/2);
+		string outputf = "output_" + to_string(x) + ".ppm";;
+		drop_ppm_image(outputf,image);
+		cout << x << " done" << endl;
 	}
-
-	draw_map(image, map);
-	Player player(2.3,2.3,M_PI/2-0.4);
-	draw_player(image, player);
-	player_rangefinder(player, image, map, M_PI/2);
-	drop_ppm_image("output.ppm",image);
 	
 	return 0;
 }
