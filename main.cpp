@@ -7,6 +7,9 @@
 
 using namespace std;
 
+constexpr unsigned int image_map_width  	{512};
+constexpr unsigned int image_height 		{512};
+constexpr unsigned int image_view_width  	{512};
 
 struct Pixel{
 	public:
@@ -48,92 +51,98 @@ std::ostream& dump_ppmout(std::ostream& os, const Pixel& pixel){
 class Player{
 		public:
 
-		unsigned int x_pos;
-		unsigned int y_pos;
-		double fov = M_PI/2;
+		double x_pos;
+		double  y_pos;
 		double view_angle;
 
-		Player(unsigned int h, unsigned int v) : x_pos(h), y_pos(v), view_angle(0.) {};
+		Player(double x, double y) : x_pos(x), y_pos(y), view_angle(0.) {};
 
-		Player(unsigned int h, unsigned int v, double a) : x_pos(h), y_pos(v), view_angle(a) {};
+		Player(double x, double y, double a) : x_pos(x), y_pos(y), view_angle(a) {};
 
-		void set_position(unsigned int horizontal, unsigned int vertical){
-			x_pos = horizontal;
-			y_pos = vertical;
+		void set_position(double x, double y){
+			x_pos = x;
+			y_pos = y;
 		}
 
 };
 
 class Image{
-		unsigned int width;
-		unsigned int height;
 	public:
+		// See about whether it's fine to make these public
+		const unsigned int map_width; // Width of the 2D (map) part of the screen
+		const unsigned int view_width; // Width of the 3D (view) part of the screen
+		const unsigned int height;
 		std::vector<Pixel> image_data;
+		Map* image_map;
 
-		Image(unsigned int w, unsigned int h) : width(w), height(h), image_data(w*h) {};
+		// How to know when we need to define the other constructors?
+		Image(unsigned int mw, unsigned int vw, unsigned int h) : map_width(mw), view_width(vw),  height(h), image_data((mw+vw)*h) {};
+		Image(unsigned int mw, unsigned int vw, unsigned int h, Map &map) : map_width(mw), view_width(vw),  height(h), image_data((mw+vw)*h), image_map(&map) {};
 
-		constexpr unsigned int get_width(){ // is this the right use of constexpr? 
-			return width;
-		}
-		constexpr unsigned int get_height(){
-			return height;
-		}	
-		
 		void set_pixel(int i, int j,const Pixel p){
-			image_data[i*width+j] = p;
+			image_data[i*(map_width+view_width)+j] = p;
+		}
+
+		void set_map(Map &map){
+			image_map = &map;
 		}
 
 		std::unique_ptr<Pixel> get_pixel(int i, int j){
-			std::unique_ptr<Pixel> pixel(new Pixel(image_data[i*width+j]));
-			return pixel; // Returns a copy of the pixel at image_data[i,j] w/o having to worry about alteration
+			std::unique_ptr<Pixel> pixel(new Pixel(image_data[i*(map_width+view_width)+j]));
+			return pixel; // Returns a copy of the pixel at image_data[i,j] w/o having to worry about alteration? Is this the right way to do it?
 		}
 
 };
 
-void draw_rectangle(Image &image, int x, int y, int rect_width, int rect_height){
-	Pixel blank_pixel(0,255,255);
+void draw_rectangle(Image &image, int x, int y, int rect_width, int rect_height, Pixel colour){
+// x&y are horizontal and vertical pixel position of (top-left corner of) rect, respectively.
 	for(int i=0;i<rect_height;i++){
 		for(int j=0;j<rect_width;j++){
-			image.set_pixel(y*rect_height+i,x*rect_width+j,blank_pixel);
-			//std::cout << "pixel set to\t" << rect_x+j << "\t" << rect_y+i << "\t" << "to: " << image.image_data[(rect_y+i)*image.get_width() + rect_x+j] << std::endl;
+			image.set_pixel(y+i,x+j,colour);
 		}
 	}
 }
 
 void draw_map(Image &image, Map &map){
-	int rect_width = image.get_width()/map.width;
-	int rect_height = image.get_height()/map.height;
+	int rect_width = image.map_width/map.width;
+	int rect_height = image.height/map.height;
 	for(unsigned int i=0; i<map.height; i++){
 		for(unsigned int j=0; j<map.width; j++){
-			if (map.map[i*map.width + j] != ' ') draw_rectangle(image, j, i, rect_width, rect_height);
+			if (map.map[i*map.width + j] != ' ') draw_rectangle(image, j*rect_width, i*rect_height, rect_width, rect_height, Pixel(0,255,255));
 		}
 	}
 }
 
 void draw_player(Image &image, Player &player){
+	double height_ratio = image.height/double(image.image_map->height); // Make it so that this fails gracefully if map not defined
+	double width_ratio =  image.map_width/double(image.image_map->width); // Maybe use game_image class inherit from image, that requires map
 	for(int i=-2;i<=2;i++){
 		for(int j=-2;j<=2;j++){
-			image.set_pixel(player.y_pos+i, player.x_pos+j, Pixel(255,255,255));	
+			image.set_pixel(height_ratio*player.y_pos+i, width_ratio*player.x_pos+j, Pixel(255,255,255));	
 		}
 	}
 }
 
 void player_rangefinder(Player &player, Image &image, Map &map, double fov){ 
-	double c=0.;
-	double max_range = 500;
-	double width_ratio = map.width/double(image.get_width()); 
-	double height_ratio = map.height/double(image.get_height()); 
-	
 
-	for(double sweep = player.view_angle - fov/2.;sweep<player.view_angle+fov/2;sweep+=fov/512){
+	double c=0.;
+	double max_range = 20;
+	double width_ratio = image.map_width/double(map.width); 
+	double height_ratio = image.height/double(map.height); 
+
+	double angle = player.view_angle - fov/2.;
+	for(unsigned int sweep = 0;sweep < image.map_width; sweep++){
+		angle+=fov/image.map_width;	
 		c=0.;
 		for(;c<max_range;c+=0.05){
-			double ry = player.y_pos+c*sin(sweep);
-			double rx = player.x_pos+c*cos(sweep);
-			image.set_pixel(ry,rx,Pixel(100,100,100));
-			//cout << "c = " << c << "\tray pos:\t" << rx << "\t" << ry << "\t" 
-		//		<< int(rx*width_ratio) << "\t" << int(ry*height_ratio) << endl;
-			if(map.map[int(ry*height_ratio)*map.width + int(rx*width_ratio)] != ' ') break;
+			double ry = player.y_pos+c*sin(angle);
+			double rx = player.x_pos+c*cos(angle);
+			image.set_pixel(ry*height_ratio,rx*width_ratio,Pixel(100,100,100));
+			if(map.map[int(ry)*map.width + int(rx)] != ' '){
+				draw_rectangle(image, image.map_width+sweep, image.height/2 - image.height/(2*c),
+					1, int(image.height/c), Pixel(255, 0,255));
+				break;
+			}
 		}
 	}
 }
@@ -142,7 +151,7 @@ void drop_ppm_image(std::string fname, Image image ){
 // Saves image to file fname
 	std::ofstream ofs {fname, std::ios::binary};
 	
-    ofs << "P6\n" << image.get_width() << " " << image.get_height() << "\n255\n";
+    ofs << "P6\n" << (image.map_width+image.view_width) << " " << image.height << "\n255\n";
 	for_each(image.image_data.begin(),image.image_data.end(),[&ofs](Pixel p){dump_ppmout(ofs, p);});
 
 	ofs.close();
@@ -152,8 +161,6 @@ int main(){
 
 	// should be: y/height/j, x/width/i ???????
 	
-	constexpr unsigned int image_width  	{512};
-	constexpr unsigned int image_height 	{512};
 
 	Map map(16,16,		"0000222222220000"\
                        	"1              0"\
@@ -172,15 +179,15 @@ int main(){
                        	"0              0"\
                        	"0002222222200000"); // our game map [ssloy]
 
-	Image image(image_width, image_height);
+	Image image(image_map_width, image_view_width, image_height, map);
 	for(unsigned int i=0;i<image_height;i++){
-		for(unsigned int j=0;j<image_width;j++){
-			image.set_pixel(i,j,Pixel(256*i/image.get_height(), 256*j/image.get_width(),0));
+		for(unsigned int j=0;j<image_map_width;j++){
+			image.set_pixel(i,j,Pixel(256*i/image.height, 256*j/image.map_width,0));
 		}
 	}
 
 	draw_map(image, map);
-	Player player(80,80,M_PI/2-0.4);
+	Player player(2.3,2.3,M_PI/2-0.4);
 	draw_player(image, player);
 	player_rangefinder(player, image, map, M_PI/2);
 	drop_ppm_image("output.ppm",image);
