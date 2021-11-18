@@ -50,6 +50,7 @@ class Player{
 
 		unsigned int x_pos;
 		unsigned int y_pos;
+		double fov = M_PI/2;
 		double view_angle;
 
 		Player(unsigned int h, unsigned int v) : x_pos(h), y_pos(v), view_angle(0.) {};
@@ -117,23 +118,24 @@ void draw_player(Image &image, Player &player){
 	}
 }
 
-double player_rangefinder(Player &player, Image &image, Map &map){ 
-	double c=0;
-	double max_range = 300;
+void player_rangefinder(Player &player, Image &image, Map &map, double fov){ 
+	double c=0.;
+	double max_range = 500;
 	double width_ratio = map.width/double(image.get_width()); 
 	double height_ratio = map.height/double(image.get_height()); 
 	
 
-	for(;c<max_range;c+=0.05){
-		double ry = player.y_pos+c*sin(player.view_angle);
-		double rx = player.x_pos+c*cos(player.view_angle);
-		cout << "c = " << c << endl;
-		image.set_pixel(ry,rx,Pixel(100,100,100));
-		cout << "ray pos " << rx << "\t" << ry << "\t" << int(rx*width_ratio) << "\t" << int(ry*height_ratio) << endl;
-		if(map.map[int(ry*height_ratio)*map.width + int(rx*width_ratio)] != ' ') break;
+	for(double sweep = player.view_angle - fov/2.;sweep<player.view_angle+fov/2;sweep+=fov/512){
+		c=0.;
+		for(;c<max_range;c+=0.05){
+			double ry = player.y_pos+c*sin(sweep);
+			double rx = player.x_pos+c*cos(sweep);
+			image.set_pixel(ry,rx,Pixel(100,100,100));
+			//cout << "c = " << c << "\tray pos:\t" << rx << "\t" << ry << "\t" 
+		//		<< int(rx*width_ratio) << "\t" << int(ry*height_ratio) << endl;
+			if(map.map[int(ry*height_ratio)*map.width + int(rx*width_ratio)] != ' ') break;
+		}
 	}
-
-	return c;
 }
 
 void drop_ppm_image(std::string fname, Image image ){
@@ -178,9 +180,9 @@ int main(){
 	}
 
 	draw_map(image, map);
-	Player player(80,80,M_PI/6);
+	Player player(80,80,M_PI/2-0.4);
 	draw_player(image, player);
-	player_rangefinder(player, image, map);
+	player_rangefinder(player, image, map, M_PI/2);
 	drop_ppm_image("output.ppm",image);
 	
 	return 0;
