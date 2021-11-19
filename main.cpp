@@ -99,7 +99,7 @@ void draw_rectangle(Image &image, int x, int y, int rect_width, int rect_height,
 // x&y are horizontal and vertical pixel position of (top-left corner of) rect, respectively.
 	for(int i=0;i<rect_height;i++){
 		for(int j=0;j<rect_width;j++){
-			image.set_pixel(y+i,x+j,colour);
+			if(y+i<image.height && x+j<image_map_width+image.view_width) image.set_pixel(y+i,x+j,colour);
 		}
 	}
 }
@@ -133,16 +133,17 @@ void player_rangefinder(Player &player, Image &image, Map &map, double fov){
 
 	double angle = player.view_angle - fov/2.;
 	for(unsigned int sweep = 0;sweep < image.map_width; sweep++){
-		angle+=fov/image.map_width;	
+		angle = player.view_angle - fov/2. + fov*sweep/image.map_width;	
 		c=0.;
-		for(;c<max_range;c+=0.05){
+		for(;c<max_range;c+=0.01){
 			double ry = player.y_pos+c*sin(angle);
 			double rx = player.x_pos+c*cos(angle);
 			image.set_pixel(ry*height_ratio,rx*width_ratio,Pixel(100,100,100));
 			char d = map.map[int(ry)*map.width + int(rx)];
 			if(d != ' '){
-				draw_rectangle(image, image.map_width+sweep, image.height/2. - image.height/(2*c),
-					1, int(image.height/c), map.colours[d-'0']);
+				int column_height = image.height/(c*cos(angle-player.view_angle));
+				draw_rectangle(image, image.map_width+sweep, int(image.height/2. - column_height/2.),
+					1, column_height, map.colours[d-'0']);
 				break;
 			}
 		}
@@ -184,7 +185,7 @@ int main(){
 	// simple dumb rotation stream - later this will be done in a loop controlled by the player in a gui
 	double a=0;
 	for(int x=0;x<360;x++){
-		a+=2*M_PI/260.;
+		a+=2*M_PI/360.;
 		Image image(image_map_width, image_view_width, image_height, map);
 		for(unsigned int i=0;i<image_height;i++){
 			for(unsigned int j=0;j<image_map_width+image_view_width;j++){
@@ -198,7 +199,7 @@ int main(){
 		draw_map(image, map);
 		Player player(2.3,2.3,a);
 		draw_player(image, player);
-		player_rangefinder(player, image, map, M_PI/2);
+		player_rangefinder(player, image, map, M_PI/3);
 		string outputf = "output_" + to_string(x) + ".ppm";;
 		drop_ppm_image(outputf,image);
 		cout << x << " done" << endl;
