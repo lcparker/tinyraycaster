@@ -34,8 +34,9 @@ struct Map{
 		unsigned int width;
 		unsigned int height;
 		const std::string map;
+		const std::vector<Pixel> colours {Pixel(100, 100, 100),Pixel(200,50,50),Pixel(0,100,100)};
 
-		Map(unsigned int w, unsigned int h, std::string s) : width(w), height(h), map(s) {assert(s.size() == w*h);};
+		Map(unsigned int w, unsigned int h, std::string s) : width(w), height(h), map(s) {assert(s.size() == w*h);}
 };
 
 std::ostream& operator<<(std::ostream& os, const Pixel& pixel){
@@ -138,9 +139,10 @@ void player_rangefinder(Player &player, Image &image, Map &map, double fov){
 			double ry = player.y_pos+c*sin(angle);
 			double rx = player.x_pos+c*cos(angle);
 			image.set_pixel(ry*height_ratio,rx*width_ratio,Pixel(100,100,100));
-			if(map.map[int(ry)*map.width + int(rx)] != ' '){
-				draw_rectangle(image, image.map_width+sweep, image.height/2 - image.height/(2*c),
-					1, int(image.height/c), Pixel(255, 0,255));
+			char d = map.map[int(ry)*map.width + int(rx)];
+			if(d != ' '){
+				draw_rectangle(image, image.map_width+sweep, image.height/2. - image.height/(2*c),
+					1, int(image.height/c), map.colours[d-'0']);
 				break;
 			}
 		}
@@ -185,14 +187,16 @@ int main(){
 		a+=2*M_PI/260.;
 		Image image(image_map_width, image_view_width, image_height, map);
 		for(unsigned int i=0;i<image_height;i++){
-			for(unsigned int j=0;j<image_map_width;j++){
-				image.set_pixel(i,j,Pixel(256*i/image.height, 256*j/image.map_width,0));
+			for(unsigned int j=0;j<image_map_width+image_view_width;j++){
+				if(j<image_map_width){
+					image.set_pixel(i,j,Pixel(255*i/image.height, 255*j/image.map_width,0));
+				} else{
+					image.set_pixel(i,j,Pixel(255,255,255));
+				}
 			}
 		}
 		draw_map(image, map);
 		Player player(2.3,2.3,a);
-		cout << player.view_angle << endl;
-		cout << a << endl;
 		draw_player(image, player);
 		player_rangefinder(player, image, map, M_PI/2);
 		string outputf = "output_" + to_string(x) + ".ppm";;
