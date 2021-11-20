@@ -4,6 +4,17 @@
 #include <array>
 #include <string>
 #include <cmath>
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
+
+/* TODO
+	- refactor into multiple files
+	- make it fast
+	- write image processing code (can use library to start with)
+	- inheritance for e.g. types of image, type of agent (player/npc)
+	- make i,j use consistent somehow
+	- proper classes code, make sure memory managed, parallelise raycaster, make variables private	
+*/
 
 using namespace std;
 
@@ -95,6 +106,43 @@ class Image{
 
 };
 
+class Texture {
+	private:
+		std::vector<Pixel> textures;
+	public:
+		unsigned int num_textures; // TODO make private
+		unsigned int texture_width;
+		unsigned int texture_height;
+		Texture(const string filename){
+			// For now, stb_image library code mostly taken from sslow/tinyraycaster
+			// TODO write code to interface the textures natively with Pixel structs
+			int width,height,numchannels;
+			unsigned char *pixmap = stbi_load(filename.c_str(), &width, &height, &numchannels, 0); // see library file for description of this
+			// TODO implement error checking
+			if(!pixmap) cerr << "error: failed to load" << endl;
+			if(numchannels != 4) cerr << "error: values not in RGBA form" << endl;
+
+			textures.reserve(width*height);
+			num_textures = width/height;
+			texture_width=width/num_textures; // assumes square textures
+			texture_height=height;
+
+			for(int i=0;i<height;i++){
+				for(int j=0;j<width;j++){
+					textures[i*width+j] = Pixel(pixmap[4*(i*width+j)+3],
+												pixmap[4*(i*width+j)+0],
+												pixmap[4*(i*width+j)+1], 
+												pixmap[4*(i*width+j)+2]);
+				}
+			}
+			stbi_image_free(pixmap); // free the data. TODO write some code that obviates this using proper C++
+		}
+
+		Pixel get_pixel(int n, int i, int j){
+			return textures[j*num_textures*texture_width+n*texture_width+i];
+		}
+};
+
 void draw_rectangle(Image &image, int x, int y, int rect_width, int rect_height, Pixel colour){
 // x&y are horizontal and vertical pixel position of (top-left corner of) rect, respectively.
 	for(int i=0;i<rect_height;i++){
@@ -182,6 +230,13 @@ int main(){
                        	"0              0"\
                        	"0002222222200000"); // our game map [ssloy]
 
+	// load the textures using the library, into a vector of images
+	// image index corresponds to number in mapstring
+
+	Texture texture("walltext.png");
+
+
+
 	// simple dumb rotation stream - later this will be done in a loop controlled by the player in a gui
 	double a=0;
 	for(int x=0;x<360;x++){
@@ -201,6 +256,12 @@ int main(){
 		draw_player(image, player);
 		player_rangefinder(player, image, map, M_PI/3);
 		string outputf = "output_" + to_string(x) + ".ppm";;
+		// draw texture 1 in tl corner of screen
+		for(int i=0;i<texture.texture_height;i++){
+			for(int j=0;j<texture.texture_width;j++){
+				image.set_pixel(i,j,texture.get_pixel(0,j,i));
+			}
+		}
 		drop_ppm_image(outputf,image);
 		cout << x << " done" << endl;
 	}
