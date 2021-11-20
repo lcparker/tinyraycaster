@@ -152,12 +152,13 @@ void draw_rectangle(Image &image, int x, int y, int rect_width, int rect_height,
 	}
 }
 
-void draw_map(Image &image, Map &map){
+void draw_map(Image &image, Map &map, Texture &texture){
 	int rect_width = image.map_width/map.width;
 	int rect_height = image.height/map.height;
 	for(unsigned int i=0; i<map.height; i++){
 		for(unsigned int j=0; j<map.width; j++){
-			if (map.map[i*map.width + j] != ' ') draw_rectangle(image, j*rect_width, i*rect_height, rect_width, rect_height, Pixel(0,255,255));
+			char c = map.map[i*map.width + j];
+			if (c != ' ') draw_rectangle(image, j*rect_width, i*rect_height, rect_width, rect_height, texture.get_pixel(c-'0', 0, 0));
 		}
 	}
 }
@@ -172,7 +173,7 @@ void draw_player(Image &image, Player &player){
 	}
 }
 
-void player_rangefinder(Player &player, Image &image, Map &map, double fov){ 
+void player_rangefinder(Player &player, Image &image, Map &map, Texture &texture, double fov){ 
 
 	double c=0.;
 	double max_range = 20;
@@ -191,7 +192,7 @@ void player_rangefinder(Player &player, Image &image, Map &map, double fov){
 			if(d != ' '){
 				int column_height = image.height/(c*cos(angle-player.view_angle));
 				draw_rectangle(image, image.map_width+sweep, int(image.height/2. - column_height/2.),
-					1, column_height, map.colours[d-'0']);
+					1, column_height, texture.get_pixel(d-'0',0,0));
 				break;
 			}
 		}
@@ -213,20 +214,20 @@ int main(){
 	// should be: y/height/j, x/width/i ???????
 	
 
-	Map map(16,16,		"0000222222220000"\
+	Map map(16,16, 		"0000222222220000"\
                        	"1              0"\
                        	"1      11111   0"\
                        	"1     0        0"\
-                       	"0     0  1110000"\
-                       	"0     3        0"\
-                       	"0   10000      0"\
-                       	"0   0   11100  0"\
-                       	"0   0   0      0"\
-                       	"0   0   1  00000"\
-                       	"0       1      0"\
-                       	"2       1      0"\
-                       	"0       0      0"\
-                       	"0 0000000      0"\
+                        "0     0  1110000"\
+                        "0     3        0"\
+                        "0   10000      0"\
+                        "0   3   11100  0"\
+                        "5   4   0      0"\
+                        "5   4   1  00000"\
+                        "0       1      0"\
+                        "2       1      0"\
+                        "0       0      0"\
+						"0 0000000      0"\
                        	"0              0"\
                        	"0002222222200000"); // our game map [ssloy]
 
@@ -244,17 +245,13 @@ int main(){
 		Image image(image_map_width, image_view_width, image_height, map);
 		for(unsigned int i=0;i<image_height;i++){
 			for(unsigned int j=0;j<image_map_width+image_view_width;j++){
-				if(j<image_map_width){
-					image.set_pixel(i,j,Pixel(255*i/image.height, 255*j/image.map_width,0));
-				} else{
 					image.set_pixel(i,j,Pixel(255,255,255));
-				}
 			}
 		}
-		draw_map(image, map);
+		draw_map(image, map,texture);
 		Player player(2.3,2.3,a);
 		draw_player(image, player);
-		player_rangefinder(player, image, map, M_PI/3);
+		player_rangefinder(player, image, map, texture, M_PI/3);
 		string outputf = "output_" + to_string(x) + ".ppm";;
 		// draw texture 1 in tl corner of screen
 		for(int i=0;i<texture.texture_height;i++){
