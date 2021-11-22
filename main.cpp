@@ -130,8 +130,8 @@ void player_rangefinder(Player &player, Image &image, Map &map, Texture &texture
 void sort_enemies(Player player, std::vector<Enemy> &enemies){
 	auto by_distance = [&player](const Enemy &e1, const Enemy &e2){
 			if( sqrt(pow(player.x_pos-e1.x_pos,2) + pow(player.y_pos-e1.y_pos,2)) < sqrt(pow(player.x_pos-e2.x_pos,2) + pow(player.y_pos-e2.y_pos,2))){
-				return 1;
-			} else return 0;
+				return 0;
+			} else return 1; // N.B. this sorts from furthest to closest
 		};
 	sort(enemies.begin(), enemies.end(), by_distance);
 }
