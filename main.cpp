@@ -29,16 +29,16 @@ double amod(double theta){
 	return theta;
 }
 
-void draw_rectangle(Image &image, int x, int y, int rect_width, int rect_height, Pixel colour){
+void draw_rectangle(Image &image, unsigned int x, unsigned int y,unsigned int rect_width, unsigned int rect_height, Pixel colour){
 // x&y are horizontal and vertical pixel position of (top-left corner of) rect, respectively.
-	for(int i=0;i<rect_height;i++){
-		for(int j=0;j<rect_width;j++){
+	for(unsigned int i=0;i<rect_height;i++){
+		for(unsigned int j=0;j<rect_width;j++){
 			if(y+i<image.height && x+j<image_map_width+image.view_width) image.set_pixel(y+i,x+j,colour);
 		}
 	}
 }
 
-void draw_view_texture_rectangle(Image &image, int x, int y, int rect_width, int rect_height,Texture &texture, int texture_num, int texture_pos){
+void draw_view_texture_rectangle(Image &image, unsigned int x,unsigned int y,unsigned int rect_width,unsigned int rect_height,Texture &texture, int texture_num, int texture_pos){
 // x&y are horizontal and vertical pixel position of (top-left corner of) rect, respectively.
 	for(unsigned int i=0;i<rect_height;i++){
 		for(unsigned int j=0;j<rect_width;j++){
@@ -47,7 +47,7 @@ void draw_view_texture_rectangle(Image &image, int x, int y, int rect_width, int
 	}
 }
 
-void draw_view_texture_rectangle_full(Image &image, int x, int y, int rect_width, int rect_height,Texture &texture, int texture_num, double distance){ // TODO ugly hack, merge this and prev func
+void draw_view_texture_rectangle_full(Image &image,unsigned int x, unsigned int y, unsigned int rect_width, unsigned int rect_height,Texture &texture, int texture_num, double distance){ // TODO ugly hack, merge this and prev func
 // x&y are horizontal and vertical pixel position of (top-left corner of) rect, respectively.
 	for(unsigned int i=0;i<rect_height;i++){
 		for(unsigned int j=0;j<rect_width;j++){
@@ -82,8 +82,6 @@ void draw_character_on_map(Image &image, double x_pos, double y_pos, Pixel colou
 }
 
 void draw_enemy_on_screen(Image &image, Player &player, Enemy &enemy, Texture &enemy_textures, double fov){
-	double height_ratio = image.height/double(image.image_map->height); // Make it so that this fails gracefully if map not defined
-	double width_ratio =  image.map_width/double(image.image_map->width); // Maybe use game_image class inherit from image, that requires map
 
 	double rel_x = enemy.x_pos - player.x_pos;
 	double rel_y = enemy.y_pos - player.y_pos;
@@ -129,6 +127,16 @@ void player_rangefinder(Player &player, Image &image, Map &map, Texture &texture
 	}
 }
 
+void sort_enemies(Player player, std::vector<Enemy> &enemies){
+	auto by_distance = [&player](const Enemy &e1, const Enemy &e2){
+			if( sqrt(pow(player.x_pos-e1.x_pos,2) + pow(player.y_pos-e1.y_pos,2)) < sqrt(pow(player.x_pos-e2.x_pos,2) + pow(player.y_pos-e2.y_pos,2))){
+				return 1;
+			} else return 0;
+		};
+	sort(enemies.begin(), enemies.end(), by_distance);
+}
+
+
 void drop_ppm_image(std::string fname, Image image ){
 // Saves image to file fname
 	std::ofstream ofs {fname, std::ios::binary};
@@ -170,8 +178,10 @@ int main(){
 
 	// Define enemies
 
-	vector<Enemy> enemies {{1.834, 8.765, 0}, {5.323, 5.365, 1}, {4.123, 10.26, 2}};
-
+	vector<Enemy> enemies {{3.523, 3.812, 2}, {1.834, 8.765, 0}, {5.323, 5.365, 1}, {4.123, 10.26, 2}};
+	
+	Player player(2.3,2.3,0);
+	sort_enemies(player,enemies);
 
 	// simple dumb rotation stream - later this will be done in a loop controlled by the player in a gui
 	double a=M_PI/3;

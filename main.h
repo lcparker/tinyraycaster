@@ -15,11 +15,11 @@ struct Pixel{
 		unsigned char b;
 		unsigned char a;
 
-		Pixel( unsigned char R, unsigned char G, unsigned char B, unsigned char A) : r(R), g(G), b(B), a(A) {};
+		Pixel(unsigned char R, unsigned char G, unsigned char B, unsigned char A) : r(R), g(G), b(B), a(A) {};
 
-		Pixel(unsigned char R, unsigned char G, unsigned char B) : a(255), r(R), g(G), b(B) {};
+		Pixel(unsigned char R, unsigned char G, unsigned char B) :  r(R), g(G), b(B), a(255) {};
 
-		Pixel() : a(0), r(0), g(0), b(0) {};
+		Pixel() :  r(0), g(0), b(0), a(0) {};
 
 		friend std::ostream& operator<<(std::ostream& os, const Pixel& pixel);
 		friend std::ostream& dump_ppmout(const Pixel& pixel);
@@ -61,8 +61,6 @@ public:
 
 
 class Player {
-private:
-	double view_angle;
 public:
 	double x_pos;
 	double y_pos;
@@ -79,6 +77,9 @@ public:
 	}
 
 	double get_angle(){ return view_angle;}
+
+private:
+	double view_angle;
 
 };
 
