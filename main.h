@@ -61,13 +61,24 @@ public:
 
 
 class Player {
+private:
+	double view_angle;
 public:
 	double x_pos;
 	double y_pos;
-	double view_angle;
 
 	Player(double x, double y) : x_pos(x), y_pos(y), view_angle(0.) {};
-	Player(double x, double y, double a) : x_pos(x), y_pos(y), view_angle(a) {};
+	Player(double x, double y, double a) : x_pos(x), y_pos(y), view_angle(a) {
+		while(abs(view_angle)>M_PI){
+			if(view_angle>M_PI){
+				view_angle-=2*M_PI;
+			} else if(view_angle<M_PI){
+				view_angle+=2*M_PI;
+			}
+		}
+	}
+
+	double get_angle(){ return view_angle;}
 
 };
 
@@ -87,11 +98,12 @@ class Image{
 		const unsigned int view_width; // Width of the 3D (view) part of the screen
 		const unsigned int height;
 		std::vector<Pixel> image_data;
+		std::vector<double> depth;
 		Map* image_map;
 
 		// How to know when we need to define the other constructors?
-		Image(unsigned int mw, unsigned int vw, unsigned int h) : map_width(mw), view_width(vw),  height(h), image_data((mw+vw)*h) {};
-		Image(unsigned int mw, unsigned int vw, unsigned int h, Map &map) : map_width(mw), view_width(vw),  height(h), image_data((mw+vw)*h), image_map(&map) {};
+		Image(unsigned int mw, unsigned int vw, unsigned int h) : map_width(mw), view_width(vw),  height(h), image_data((mw+vw)*h) {depth.reserve(vw);}
+		Image(unsigned int mw, unsigned int vw, unsigned int h, Map &map) : map_width(mw), view_width(vw),  height(h), image_data((mw+vw)*h), image_map(&map) {depth.reserve(vw);}
 
 		void set_pixel(int i, int j,const Pixel p){
 			if (p.a > 128) image_data[i*(map_width+view_width)+j] = p;

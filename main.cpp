@@ -17,6 +17,18 @@ constexpr unsigned int image_height 		{512};
 constexpr unsigned int image_view_width  	{512};
 
 
+double amod(double theta){
+	while(abs(theta) > M_PI){
+		if(theta>M_PI) {
+			theta-=2*M_PI;
+		} else if(theta<M_PI){
+			theta+=2*M_PI;
+		}
+	}
+
+	return theta;
+}
+
 void draw_rectangle(Image &image, int x, int y, int rect_width, int rect_height, Pixel colour){
 // x&y are horizontal and vertical pixel position of (top-left corner of) rect, respectively.
 	for(int i=0;i<rect_height;i++){
@@ -35,12 +47,14 @@ void draw_view_texture_rectangle(Image &image, int x, int y, int rect_width, int
 	}
 }
 
-void draw_view_texture_rectangle_full(Image &image, int x, int y, int rect_width, int rect_height,Texture &texture, int texture_num){ // TODO ugly hack, merge this and prev func
+void draw_view_texture_rectangle_full(Image &image, int x, int y, int rect_width, int rect_height,Texture &texture, int texture_num, double distance){ // TODO ugly hack, merge this and prev func
 // x&y are horizontal and vertical pixel position of (top-left corner of) rect, respectively.
 	for(unsigned int i=0;i<rect_height;i++){
 		for(unsigned int j=0;j<rect_width;j++){
-			if(y+i<image.height && x+j<image_map_width+image.view_width){
-				image.set_pixel(y+i,x+j,texture.get_pixel(texture_num, texture.texture_width*j/rect_width, texture.texture_height*i/rect_height));
+			if(y+i<image.height && x+j>=image.map_width && x+j<image.map_width+image.view_width){
+				if(distance < image.depth[x+j - image.map_width]){
+					image.set_pixel(y+i,x+j,texture.get_pixel(texture_num, texture.texture_width*j/rect_width, texture.texture_height*i/rect_height));
+				}
 			}
 		}
 	}
@@ -75,11 +89,12 @@ void draw_enemy_on_screen(Image &image, Player &player, Enemy &enemy, Texture &e
 	double rel_y = enemy.y_pos - player.y_pos;
 
 	double rel_angle = atan2(rel_y, rel_x);
+	double offset_angle = amod(rel_angle - player.get_angle());
 	
-	if (abs(player.view_angle - rel_angle) <= fov/2) { // Make it so this shows partial enemies without encroaching on map
+	if (abs(offset_angle) <= fov/2 + M_PI/6) { // Make it so this shows partial enemies without encroaching on map // M_PI/6 a fudge factor so enemies don't abruptly leave screen
 		double distance = sqrt(pow(rel_x,2)+pow(rel_y,2));
 		int size = min(image.height, (unsigned int) (image.height/distance)); // rectangular dimension of enemy on screen
-		draw_view_texture_rectangle_full(image,image.map_width+((rel_angle-player.view_angle)/fov+0.5)*image.view_width - size/2, image.height/2 - size/2,size,size, enemy_textures, enemy.texture_id);
+		draw_view_texture_rectangle_full(image,image.map_width+(offset_angle/fov+0.5)*image.view_width - size/2, image.height/2 - size/2,size,size, enemy_textures, enemy.texture_id, distance);
 	}
 
 
@@ -87,27 +102,27 @@ void draw_enemy_on_screen(Image &image, Player &player, Enemy &enemy, Texture &e
 
 void player_rangefinder(Player &player, Image &image, Map &map, Texture &texture, double fov){ 
 
-	double c=0.;
-	double max_range = 20;
 	double width_ratio = image.map_width/double(map.width); 
 	double height_ratio = image.height/double(map.height); 
 
-	double angle = player.view_angle - fov/2.;
+	double angle;
+
+	double max_range = 20;
 	for(unsigned int sweep = 0;sweep < image.map_width; sweep++){
-		angle = player.view_angle - fov/2. + fov*sweep/image.map_width;	
-		c=0.;
-		for(;c<max_range;c+=0.01){
+		angle = amod(player.get_angle() - fov/2. + fov*sweep/image.map_width);	
+		for(double c=0.;c<max_range;c+=0.01){
 			double ry = player.y_pos+c*sin(angle);
 			double rx = player.x_pos+c*cos(angle);
 			image.set_pixel(ry*height_ratio,rx*width_ratio,Pixel(100,100,100));
 			char d = map.map[int(ry)*map.width + int(rx)];
 			if(d != ' '){
-				int column_height = image.height/(c*cos(angle-player.view_angle)); // TODO really figure out where the cos comes from here
+				int column_height = image.height/(c*cos(angle-player.get_angle())); // TODO really figure out where the cos comes from here
 				double frac_x = rx-floor(rx);
 				double frac_y = ry-floor(ry);
 				double frac = min(abs(frac_x),abs(1-frac_x)) < min(abs(frac_y),abs(1-frac_y)) ? frac_y : frac_x;
 				draw_view_texture_rectangle(image, image.map_width+sweep, int(image.height/2. - column_height/2.),
 					1, column_height, texture, d-'0', frac*texture.texture_width);
+				image.depth[sweep] = c;
 				break;
 			}
 		}
