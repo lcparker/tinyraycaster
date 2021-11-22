@@ -10,14 +10,14 @@ using namespace std;
 
 struct Pixel{
 	public:
-		unsigned char a;
 		unsigned char r;
 		unsigned char g;
 		unsigned char b;
+		unsigned char a;
 
-		Pixel(unsigned char A, unsigned char R, unsigned char G, unsigned char B) : a(A), r(R), g(G), b(B) {};
+		Pixel( unsigned char R, unsigned char G, unsigned char B, unsigned char A) : r(R), g(G), b(B), a(A) {};
 
-		Pixel(unsigned char R, unsigned char G, unsigned char B) : a(0), r(R), g(G), b(B) {};
+		Pixel(unsigned char R, unsigned char G, unsigned char B) : a(255), r(R), g(G), b(B) {};
 
 		Pixel() : a(0), r(0), g(0), b(0) {};
 
@@ -37,31 +37,47 @@ struct Map{
 };
 
 std::ostream& operator<<(std::ostream& os, const Pixel& pixel){
-	os << (int)pixel.r << " " <<  (int)pixel.g << " " << (int)pixel.b << " ";
+	os << (int)pixel.r << " " <<  (int)pixel.g << " " << (int)pixel.b;
 	return os;
 }
 
 std::ostream& dump_ppmout(std::ostream& os, const Pixel& pixel){
-	os << pixel.r << pixel.g << pixel.b;	
+	os << pixel.r << pixel.g << pixel.b;
 	return os;
 }
 
-class Player{
-		public:
+class Character{
+public:
+	double x_pos;
+	double y_pos;
+	
+	Character(double x, double y) : x_pos(x), y_pos(y) {};
 
-		double x_pos;
-		double  y_pos;
-		double view_angle;
+	void set_position(double x, double y){
+		x_pos = x;
+		y_pos = y;
+	}
+};
 
-		Player(double x, double y) : x_pos(x), y_pos(y), view_angle(0.) {};
 
-		Player(double x, double y, double a) : x_pos(x), y_pos(y), view_angle(a) {};
+class Player {
+public:
+	double x_pos;
+	double y_pos;
+	double view_angle;
 
-		void set_position(double x, double y){
-			x_pos = x;
-			y_pos = y;
-		}
+	Player(double x, double y) : x_pos(x), y_pos(y), view_angle(0.) {};
+	Player(double x, double y, double a) : x_pos(x), y_pos(y), view_angle(a) {};
 
+};
+
+class Enemy { // TODO Make this and Player come from the same base class somehow?
+public:
+	double x_pos;
+	double y_pos;
+	unsigned int texture_id; // ID of the texture in the creature texture file.
+	
+	Enemy(double x, double y, unsigned int n) : x_pos(x), y_pos(y), texture_id(n) {};
 };
 
 class Image{
@@ -78,7 +94,7 @@ class Image{
 		Image(unsigned int mw, unsigned int vw, unsigned int h, Map &map) : map_width(mw), view_width(vw),  height(h), image_data((mw+vw)*h), image_map(&map) {};
 
 		void set_pixel(int i, int j,const Pixel p){
-			image_data[i*(map_width+view_width)+j] = p;
+			if (p.a > 128) image_data[i*(map_width+view_width)+j] = p;
 		}
 
 		void set_map(Map &map){
@@ -99,6 +115,7 @@ class Texture {
 		unsigned int num_textures; // TODO make private
 		unsigned int texture_width;
 		unsigned int texture_height;
+
 		Texture(const string filename){
 			// For now, stb_image library code mostly taken from sslow/tinyraycaster
 			// TODO write code to interface the textures natively with Pixel structs
@@ -115,10 +132,10 @@ class Texture {
 
 			for(int i=0;i<height;i++){
 				for(int j=0;j<width;j++){
-					textures[i*width+j] = Pixel(pixmap[4*(i*width+j)+3],
-												pixmap[4*(i*width+j)+0],
-												pixmap[4*(i*width+j)+1], 
-												pixmap[4*(i*width+j)+2]);
+					textures[i*width+j] = Pixel(pixmap[4*(i*width+j)+0],
+												pixmap[4*(i*width+j)+1],
+												pixmap[4*(i*width+j)+2], 
+												pixmap[4*(i*width+j)+3]);
 				}
 			}
 			stbi_image_free(pixmap); // free the data. TODO write some code that obviates this using proper C++

@@ -28,12 +28,24 @@ void draw_rectangle(Image &image, int x, int y, int rect_width, int rect_height,
 
 void draw_view_texture_rectangle(Image &image, int x, int y, int rect_width, int rect_height,Texture &texture, int texture_num, int texture_pos){
 // x&y are horizontal and vertical pixel position of (top-left corner of) rect, respectively.
-	for(int i=0;i<rect_height;i++){
-		for(int j=0;j<rect_width;j++){
+	for(unsigned int i=0;i<rect_height;i++){
+		for(unsigned int j=0;j<rect_width;j++){
 			if(y+i<image.height && x+j<image_map_width+image.view_width) image.set_pixel(y+i,x+j,texture.get_pixel(texture_num, texture_pos, texture.texture_height*i/rect_height));
 		}
 	}
 }
+
+void draw_view_texture_rectangle_full(Image &image, int x, int y, int rect_width, int rect_height,Texture &texture, int texture_num){ // TODO ugly hack, merge this and prev func
+// x&y are horizontal and vertical pixel position of (top-left corner of) rect, respectively.
+	for(unsigned int i=0;i<rect_height;i++){
+		for(unsigned int j=0;j<rect_width;j++){
+			if(y+i<image.height && x+j<image_map_width+image.view_width){
+				image.set_pixel(y+i,x+j,texture.get_pixel(texture_num, texture.texture_width*j/rect_width, texture.texture_height*i/rect_height));
+			}
+		}
+	}
+}
+
 void draw_map(Image &image, Map &map, Texture &texture){
 	int rect_width = image.map_width/map.width;
 	int rect_height = image.height/map.height;
@@ -45,14 +57,32 @@ void draw_map(Image &image, Map &map, Texture &texture){
 	}
 }
 
-void draw_player(Image &image, Player &player){
+void draw_character_on_map(Image &image, double x_pos, double y_pos, Pixel colour){
 	double height_ratio = image.height/double(image.image_map->height); // Make it so that this fails gracefully if map not defined
 	double width_ratio =  image.map_width/double(image.image_map->width); // Maybe use game_image class inherit from image, that requires map
 	for(int i=-2;i<=2;i++){
 		for(int j=-2;j<=2;j++){
-			image.set_pixel(height_ratio*player.y_pos+i, width_ratio*player.x_pos+j, Pixel(255,255,255));	
+			image.set_pixel(height_ratio*y_pos+i, width_ratio*x_pos+j, colour);	
 		}
 	}
+}
+
+void draw_enemy_on_screen(Image &image, Player &player, Enemy &enemy, Texture &enemy_textures, double fov){
+	double height_ratio = image.height/double(image.image_map->height); // Make it so that this fails gracefully if map not defined
+	double width_ratio =  image.map_width/double(image.image_map->width); // Maybe use game_image class inherit from image, that requires map
+
+	double rel_x = enemy.x_pos - player.x_pos;
+	double rel_y = enemy.y_pos - player.y_pos;
+
+	double rel_angle = atan2(rel_y, rel_x);
+	
+	if (abs(player.view_angle - rel_angle) <= fov/2) { // Make it so this shows partial enemies without encroaching on map
+		double distance = sqrt(pow(rel_x,2)+pow(rel_y,2));
+		int size = min(image.height, (unsigned int) (image.height/distance)); // rectangular dimension of enemy on screen
+		draw_view_texture_rectangle_full(image,image.map_width+((rel_angle-player.view_angle)/fov+0.5)*image.view_width - size/2, image.height/2 - size/2,size,size, enemy_textures, enemy.texture_id);
+	}
+
+
 }
 
 void player_rangefinder(Player &player, Image &image, Map &map, Texture &texture, double fov){ 
@@ -72,7 +102,7 @@ void player_rangefinder(Player &player, Image &image, Map &map, Texture &texture
 			image.set_pixel(ry*height_ratio,rx*width_ratio,Pixel(100,100,100));
 			char d = map.map[int(ry)*map.width + int(rx)];
 			if(d != ' '){
-				int column_height = image.height/(c*cos(angle-player.view_angle));
+				int column_height = image.height/(c*cos(angle-player.view_angle)); // TODO really figure out where the cos comes from here
 				double frac_x = rx-floor(rx);
 				double frac_y = ry-floor(ry);
 				double frac = min(abs(frac_x),abs(1-frac_x)) < min(abs(frac_y),abs(1-frac_y)) ? frac_y : frac_x;
@@ -121,10 +151,16 @@ int main(){
 
 	Texture texture("walltext.png");
 
+	Texture enemy_textures("monsters.png");
+
+	// Define enemies
+
+	vector<Enemy> enemies {{1.834, 8.765, 0}, {5.323, 5.365, 1}, {4.123, 10.26, 2}};
 
 
 	// simple dumb rotation stream - later this will be done in a loop controlled by the player in a gui
-	double a=0;
+	double a=M_PI/3;
+	double fov = M_PI/2.5;
 	for(int x=0;x<360;x++){
 		a+=2*M_PI/360.;
 		Image image(image_map_width, image_view_width, image_height, map);
@@ -133,17 +169,15 @@ int main(){
 					image.set_pixel(i,j,Pixel(255,255,255));
 			}
 		}
-		draw_map(image, map,texture);
 		Player player(2.3,2.3,a);
-		draw_player(image, player);
-		player_rangefinder(player, image, map, texture, M_PI/3);
-		string outputf = "output_" + to_string(x) + ".ppm";;
-		// draw texture 1 in tl corner of screen
-		for(unsigned int i=0;i<texture.texture_height;i++){
-			for(unsigned int j=0;j<texture.texture_width;j++){
-				image.set_pixel(i,j,texture.get_pixel(0,j,i));
-			}
+		draw_character_on_map(image, player.x_pos, player.y_pos, Pixel(0,0,255)); // TODO make it so this takes any abstract Character object
+		player_rangefinder(player, image, map, texture, fov);
+		for(auto &enemy : enemies) {
+			draw_character_on_map(image, enemy.x_pos, enemy.y_pos, Pixel(255,0,0));
+			draw_enemy_on_screen(image, player, enemy, enemy_textures, M_PI/3);
 		}
+		draw_map(image, map,texture);
+		string outputf = "output_" + to_string(x) + ".ppm";;
 		drop_ppm_image(outputf,image);
 		cout << x << " done" << endl;
 	}
