@@ -1,4 +1,5 @@
-#include "main.h"
+#include "TinyRayCaster.h"
+#include <SDL2/SDL.h>
 
 /* TODO
 	- make it fast
@@ -100,7 +101,7 @@ void draw_enemy_on_screen(Image &image, Player &player, Enemy &enemy, Texture &e
 
 void player_rangefinder(Player &player, Image &image, Map &map, Texture &texture, double fov){ 
 
-	double width_ratio = image.map_width/double(map.width); 
+	double width_ratio = image.map_width/double(map.width);
 	double height_ratio = image.height/double(map.height); 
 
 	double angle;
@@ -149,8 +150,7 @@ void drop_ppm_image(std::string fname, Image image ){
 
 int main(){
 
-	// should be: y/height/j, x/width/i ???????
-	
+	// Program logic
 
 	Map map(16,16, 		"0000222222220000"\
                        	"1              0"\
@@ -182,30 +182,69 @@ int main(){
 	
 	Player player(2.3,2.3,0);
 	sort_enemies(player,enemies);
-
 	// simple dumb rotation stream - later this will be done in a loop controlled by the player in a gui
 	double a=M_PI/3;
 	double fov = M_PI/2.5;
-	for(int x=0;x<360;x++){
-		a+=2*M_PI/360.;
-		Image image(image_map_width, image_view_width, image_height, map);
-		for(unsigned int i=0;i<image_height;i++){
-			for(unsigned int j=0;j<image_map_width+image_view_width;j++){
-					image.set_pixel(i,j,Pixel(255,255,255));
-			}
+	a=2*M_PI/360.;
+	Image image(image_map_width, image_view_width, image_height, map);
+	for(unsigned int i=0;i<image_height;i++){
+		for(unsigned int j=0;j<image_map_width+image_view_width;j++){
+				image.set_pixel(i,j,Pixel(255,255,255));
 		}
-		Player player(2.3,2.3,a);
-		draw_character_on_map(image, player.x_pos, player.y_pos, Pixel(0,0,255)); // TODO make it so this takes any abstract Character object
-		player_rangefinder(player, image, map, texture, fov);
-		for(auto &enemy : enemies) {
-			draw_character_on_map(image, enemy.x_pos, enemy.y_pos, Pixel(255,0,0));
-			draw_enemy_on_screen(image, player, enemy, enemy_textures, M_PI/3);
-		}
-		draw_map(image, map,texture);
-		string outputf = "output_" + to_string(x) + ".ppm";;
-		drop_ppm_image(outputf,image);
-		cout << x << " done" << endl;
 	}
+	draw_character_on_map(image, player.x_pos, player.y_pos, Pixel(0,0,255)); // TODO make it so this takes any abstract Character object
+	player_rangefinder(player, image, map, texture, fov);
+	for(auto &enemy : enemies) {
+		draw_character_on_map(image, enemy.x_pos, enemy.y_pos, Pixel(255,0,0));
+		draw_enemy_on_screen(image, player, enemy, enemy_textures, M_PI/3);
+	}
+	draw_map(image, map,texture);
+	drop_ppm_image("sample_image.ppm", image);
+
+	// SDL Logic
 	
+	SDL_Window   *window 	  = nullptr;
+    SDL_Renderer *renderer 	  = nullptr;
+	SDL_Texture  *sdl_texture = nullptr;
+
+    if (SDL_Init(SDL_INIT_VIDEO) < 0) {
+        std::cerr << "Couldn't initialize SDL: " << SDL_GetError() << std::endl;
+        return -1;
+    }
+
+    if (SDL_CreateWindowAndRenderer(image_map_width+image_view_width, image_height, SDL_WINDOW_SHOWN | SDL_WINDOW_INPUT_FOCUS, &window, &renderer) < 0) {
+        std::cerr << "Couldn't create window and renderer: " << SDL_GetError() << std::endl;
+        return -1;
+    }
+
+    sdl_texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ABGR8888,	SDL_TEXTUREACCESS_STREAMING, image_map_width+image_view_width, image_height);
+
+    if(SDL_UpdateTexture(sdl_texture, NULL, image.image_data.data(), 4*(image_map_width+image_view_width)) < 0){
+		std::cerr << "Error refreshing texture: " << SDL_GetError() << std::endl;
+	};
+
+	// SDL Event Loop
+
+    SDL_Event event;
+    while (1) {
+        SDL_PollEvent(&event);
+        if (event.type == SDL_QUIT) {
+            break;
+        }
+
+        SDL_RenderClear(renderer);
+        SDL_RenderCopy(renderer, sdl_texture, NULL, NULL);
+        SDL_RenderPresent(renderer);
+    }
+
+	// SDL Memory Clearance
+
+    SDL_DestroyTexture(sdl_texture);
+    SDL_DestroyRenderer(renderer);
+    SDL_DestroyWindow(window);
+	
+    SDL_Quit();
+
+
 	return 0;
 }

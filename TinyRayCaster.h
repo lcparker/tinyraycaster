@@ -3,6 +3,7 @@
 #include <vector>
 #include <string>
 #include <cmath>
+#include <stdint.h>
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
@@ -118,7 +119,6 @@ class Image{
 			std::unique_ptr<Pixel> pixel(new Pixel(image_data[i*(map_width+view_width)+j]));
 			return pixel; // Returns a copy of the pixel at image_data[i,j] w/o having to worry about alteration? Is this the right way to do it?
 		}
-
 };
 
 class Texture {
