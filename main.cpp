@@ -1,10 +1,14 @@
-#include "TinyRayCaster.h"
+#include "main.h"
+#include "image.h"
+#include "texture.h"
+#include "map.h"
+#include "character.h"
 #include <SDL2/SDL.h>
 
 /* TODO
 	- make it fast
-	- write image processing code (can use library to start with)
 	- inheritance for e.g. types of image, type of agent (player/npc)
+	- put state of game into a game class wrapper that handles interactions
 	- make i,j use consistent somehow
 	- proper classes code, make sure memory managed, parallelise raycaster, make variables private	
 */
@@ -18,20 +22,7 @@ constexpr unsigned int image_height 		{512};
 constexpr unsigned int image_view_width  	{512};
 
 
-double amod(double theta){
-	while(abs(theta) > M_PI){
-		if(theta>M_PI) {
-			theta-=2*M_PI;
-		} else if(theta<M_PI){
-			theta+=2*M_PI;
-		}
-	}
-
-	return theta;
-}
-
 void draw_rectangle(Image &image, unsigned int x, unsigned int y,unsigned int rect_width, unsigned int rect_height, Pixel colour){
-// x&y are horizontal and vertical pixel position of (top-left corner of) rect, respectively.
 	for(unsigned int i=0;i<rect_height;i++){
 		for(unsigned int j=0;j<rect_width;j++){
 			if(y+i<image.height && x+j<image_map_width+image.view_width) image.set_pixel(y+i,x+j,colour);
@@ -39,28 +30,23 @@ void draw_rectangle(Image &image, unsigned int x, unsigned int y,unsigned int re
 	}
 }
 
-void draw_view_texture_rectangle(Image &image, unsigned int x,unsigned int y,unsigned int rect_width,unsigned int rect_height,Texture &texture, int texture_num, int texture_pos){
-// x&y are horizontal and vertical pixel position of (top-left corner of) rect, respectively.
-	for(unsigned int i=0;i<rect_height;i++){
-		for(unsigned int j=0;j<rect_width;j++){
-			if(y+i<image.height && x+j<image_map_width+image.view_width) image.set_pixel(y+i,x+j,texture.get_pixel(texture_num, texture_pos, texture.texture_height*i/rect_height));
-		}
-	}
-}
-
-void draw_view_texture_rectangle_full(Image &image,unsigned int x, unsigned int y, unsigned int rect_width, unsigned int rect_height,Texture &texture, int texture_num, double distance){ // TODO ugly hack, merge this and prev func
-// x&y are horizontal and vertical pixel position of (top-left corner of) rect, respectively.
+void draw_view_texture_rectangle(Image &image,unsigned int x, unsigned int y, unsigned int rect_width, unsigned int rect_height,Texture &texture, int texture_num, int texture_pos = -1, double distance = 0.){ 
 	for(unsigned int i=0;i<rect_height;i++){
 		for(unsigned int j=0;j<rect_width;j++){
 			if(y+i<image.height && x+j>=image.map_width && x+j<image.map_width+image.view_width){
-				if(distance < image.depth[x+j - image.map_width]){
-					image.set_pixel(y+i,x+j,texture.get_pixel(texture_num, texture.texture_width*j/rect_width, texture.texture_height*i/rect_height));
+				if(texture_pos==-1 ){
+					if(distance < image.depth[x+j - image.map_width]){
+						image.set_pixel(y+i,x+j,texture.get_pixel(texture_num, texture.texture_width*j/rect_width, texture.texture_height*i/rect_height));
+					}
+				} else{ 
+					image.set_pixel(y+i,x+j,texture.get_pixel(texture_num, texture_pos, texture.texture_height*i/rect_height));
 				}
 			}
 		}
 	}
 }
 
+// put in map.cpp
 void draw_map(Image &image, Map &map, Texture &texture){
 	int rect_width = image.map_width/map.width;
 	int rect_height = image.height/map.height;
@@ -72,9 +58,11 @@ void draw_map(Image &image, Map &map, Texture &texture){
 	}
 }
 
+// put in character.cpp
 void draw_character_on_map(Image &image, double x_pos, double y_pos, Pixel colour){
-	double height_ratio = image.height/double(image.image_map->height); // Make it so that this fails gracefully if map not defined
-	double width_ratio =  image.map_width/double(image.image_map->width); // Maybe use game_image class inherit from image, that requires map
+	if (image.image_map == nullptr) return;
+	double height_ratio = image.height/double(image.image_map->height); 
+	double width_ratio =  image.map_width/double(image.image_map->width);
 	for(int i=-2;i<=2;i++){
 		for(int j=-2;j<=2;j++){
 			image.set_pixel(height_ratio*y_pos+i, width_ratio*x_pos+j, colour);	
@@ -82,6 +70,7 @@ void draw_character_on_map(Image &image, double x_pos, double y_pos, Pixel colou
 	}
 }
 
+//put in enemy.cpp
 void draw_enemy_on_screen(Image &image, Player &player, Enemy &enemy, Texture &enemy_textures, double fov){
 
 	double rel_x = enemy.x_pos - player.x_pos;
@@ -90,13 +79,13 @@ void draw_enemy_on_screen(Image &image, Player &player, Enemy &enemy, Texture &e
 	double rel_angle = atan2(rel_y, rel_x);
 	double offset_angle = amod(rel_angle - player.get_angle());
 	
-	if (abs(offset_angle) <= fov/2 + M_PI/6) { // Make it so this shows partial enemies without encroaching on map // M_PI/6 a fudge factor so enemies don't abruptly leave screen
+	constexpr double fudge_factor = M_PI/6;
+
+	if (abs(offset_angle) <= fov/2 + fudge_factor) {
 		double distance = sqrt(pow(rel_x,2)+pow(rel_y,2));
-		int size = min(image.height, (unsigned int) (image.height/distance)); // rectangular dimension of enemy on screen
-		draw_view_texture_rectangle_full(image,image.map_width+(offset_angle/fov+0.5)*image.view_width - size/2, image.height/2 - size/2,size,size, enemy_textures, enemy.texture_id, distance);
+		int size = min(image.height, (unsigned int) (image.height/distance));
+		draw_view_texture_rectangle(image,image.map_width+(offset_angle/fov+0.5)*image.view_width - size/2., image.height/2 - size/2,size,size, enemy_textures, enemy.texture_id, -1, distance);
 	}
-
-
 }
 
 void player_rangefinder(Player &player, Image &image, Map &map, Texture &texture, double fov){ 
@@ -112,15 +101,16 @@ void player_rangefinder(Player &player, Image &image, Map &map, Texture &texture
 		for(double c=0.;c<max_range;c+=0.01){
 			double ry = player.y_pos+c*sin(angle);
 			double rx = player.x_pos+c*cos(angle);
-			image.set_pixel(ry*height_ratio,rx*width_ratio,Pixel(100,100,100));
+			image.set_pixel(ry*height_ratio,rx*width_ratio,Pixel(166,166,166));
 			char d = map.map[int(ry)*map.width + int(rx)];
 			if(d != ' '){
-				int column_height = image.height/(c*cos(angle-player.get_angle())); // TODO really figure out where the cos comes from here
+
+				int column_height = (c == 0.) ? image.height : image.height/(c*cos(angle-player.get_angle())); // TODO really figure out where the cos comes from here
 				double frac_x = rx-floor(rx);
 				double frac_y = ry-floor(ry);
 				double frac = min(abs(frac_x),abs(1-frac_x)) < min(abs(frac_y),abs(1-frac_y)) ? frac_y : frac_x;
 				draw_view_texture_rectangle(image, image.map_width+sweep, int(image.height/2. - column_height/2.),
-					1, column_height, texture, d-'0', frac*texture.texture_width);
+					1, column_height, texture, d-'0', frac*texture.texture_width, 0.);
 				image.depth[sweep] = c;
 				break;
 			}
@@ -128,6 +118,7 @@ void player_rangefinder(Player &player, Image &image, Map &map, Texture &texture
 	}
 }
 
+// move to enemy.cpp
 void sort_enemies(Player player, std::vector<Enemy> &enemies){
 	auto by_distance = [&player](const Enemy &e1, const Enemy &e2){
 			if( sqrt(pow(player.x_pos-e1.x_pos,2) + pow(player.y_pos-e1.y_pos,2)) < sqrt(pow(player.x_pos-e2.x_pos,2) + pow(player.y_pos-e2.y_pos,2))){
@@ -150,11 +141,9 @@ void drop_ppm_image(std::string fname, Image image ){
 
 int main(){
 
-	// Program logic
-
 	Map map(16,16, 		"0000222222220000"\
                        	"1              0"\
-                       	"1      11111   0"\
+                       	"1     011111   0"\
                        	"1     0        0"\
                         "0     0  1110000"\
                         "0     3        0"\
@@ -169,37 +158,21 @@ int main(){
                        	"0              0"\
                        	"0002222222200000"); // our game map [ssloy]
 
-	// load the textures using the library, into a vector of images
-	// image index corresponds to number in mapstring
+	// Load game textures from png files
 
 	Texture texture("walltext.png");
-
 	Texture enemy_textures("monsters.png");
+
+
+	Player player(2.3,2.3);
 
 	// Define enemies
 
 	vector<Enemy> enemies {{3.523, 3.812, 2}, {1.834, 8.765, 0}, {5.323, 5.365, 1}, {4.123, 10.26, 2}};
 	
-	Player player(2.3,2.3,0);
 	sort_enemies(player,enemies);
-	// simple dumb rotation stream - later this will be done in a loop controlled by the player in a gui
-	double a=M_PI/3;
-	double fov = M_PI/2.5;
-	a=2*M_PI/360.;
+
 	Image image(image_map_width, image_view_width, image_height, map);
-	for(unsigned int i=0;i<image_height;i++){
-		for(unsigned int j=0;j<image_map_width+image_view_width;j++){
-				image.set_pixel(i,j,Pixel(255,255,255));
-		}
-	}
-	draw_character_on_map(image, player.x_pos, player.y_pos, Pixel(0,0,255)); // TODO make it so this takes any abstract Character object
-	player_rangefinder(player, image, map, texture, fov);
-	for(auto &enemy : enemies) {
-		draw_character_on_map(image, enemy.x_pos, enemy.y_pos, Pixel(255,0,0));
-		draw_enemy_on_screen(image, player, enemy, enemy_textures, M_PI/3);
-	}
-	draw_map(image, map,texture);
-	drop_ppm_image("sample_image.ppm", image);
 
 	// SDL Logic
 	
@@ -219,18 +192,68 @@ int main(){
 
     sdl_texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ABGR8888,	SDL_TEXTUREACCESS_STREAMING, image_map_width+image_view_width, image_height);
 
-    if(SDL_UpdateTexture(sdl_texture, NULL, image.image_data.data(), 4*(image_map_width+image_view_width)) < 0){
-		std::cerr << "Error refreshing texture: " << SDL_GetError() << std::endl;
-	};
 
 	// SDL Event Loop
 
+	double a = M_PI/3;
+	double fov = M_PI/3.;
+	player.set_angle(a);
+	player.set_fov(fov);
+	 
     SDL_Event event;
-    while (1) {
+	double angle_delta = 3; // degree shift on left/right press
+	double pos_delta = 0.15; // position movement on up/down press
+    while (true) {
         SDL_PollEvent(&event);
         if (event.type == SDL_QUIT) {
             break;
-        }
+        } else if(event.type == SDL_KEYDOWN){
+			switch( event.key.keysym.sym){
+				case SDLK_LEFT:
+					a -= angle_delta*M_PI/180;
+					break;
+				case SDLK_RIGHT:
+					a += angle_delta*M_PI/180;
+					break;
+				case SDLK_UP:
+					if(map.map[int(player.y_pos+pos_delta*sin(a))*map.width+int(player.x_pos+pos_delta*cos(a))] == ' '){
+						player.x_pos += pos_delta*cos(a);
+						player.y_pos += pos_delta*sin(a);
+					}
+					break;
+				case SDLK_DOWN:
+					if(map.map[int(player.y_pos-pos_delta*sin(a))*map.width+int(player.x_pos-pos_delta*cos(a))] == ' '){
+						player.x_pos -= pos_delta*cos(a);
+						player.y_pos -= pos_delta*sin(a);
+					}
+					break;
+			}
+
+			if(SDL_UpdateTexture(sdl_texture, NULL, image.image_data.data(), 4*(image_map_width+image_view_width)) < 0){
+				std::cerr << "Error refreshing texture: " << SDL_GetError() << std::endl;
+			};
+
+			player.set_angle(a);
+
+			// Image.clear
+			for(unsigned int i=0;i<image_height;i++){
+				for(unsigned int j=0;j<image_map_width+image_view_width;j++){
+						image.set_pixel(i,j,Pixel(255,255,255));
+				}
+			}
+
+			draw_character_on_map(image, player.x_pos, player.y_pos, Pixel(0,0,255)); // TODO make it so this takes any abstract Character object
+			player_rangefinder(player, image, map, texture, fov);
+
+			for(auto &enemy : enemies) {
+				draw_character_on_map(image, enemy.x_pos, enemy.y_pos, Pixel(255,0,0));
+				draw_enemy_on_screen(image, player, enemy, enemy_textures, fov);
+			}
+
+			draw_map(image, map,texture);
+		}
+
+
 
         SDL_RenderClear(renderer);
         SDL_RenderCopy(renderer, sdl_texture, NULL, NULL);
